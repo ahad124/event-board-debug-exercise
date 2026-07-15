@@ -12,6 +12,9 @@ using Polly.Extensions.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// SECURITY: don't advertise the server implementation.
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
 // Add services to the container
 // Serialize/accept enums as their string names (e.g. BookingStatus "Confirmed")
 builder.Services.AddControllers()
@@ -117,6 +120,18 @@ builder.Services.AddCors(options =>
 builder.Services.AddLogging();
 
 var app = builder.Build();
+
+// SECURITY: baseline security response headers on every response.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    headers["X-Permitted-Cross-Domain-Policies"] = "none";
+    headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+    await next();
+});
 
 // Configure the HTTP request pipeline.
 // SECURITY: Swagger exposes the full API surface, so it is only served in Development
