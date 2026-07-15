@@ -50,6 +50,17 @@ builder.Services.AddHttpClient<IWeatherService, WeatherService>(client =>
         retryCount: 3,
         sleepDurationProvider: _ => TimeSpan.FromSeconds(2)));
 
+// SECURITY: fail fast if the JWT signing key is missing or too weak outside Development,
+// so a misconfigured deployment cannot start with an insecure/absent secret. Provide the
+// key via environment variables or a secret store — never rely on a committed default.
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (!builder.Environment.IsDevelopment() &&
+    (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32))
+{
+    throw new InvalidOperationException(
+        "Jwt:Key must be configured with at least 32 bytes. Set it via environment or a secret store.");
+}
+
 // Add JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
