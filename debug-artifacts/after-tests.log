@@ -1,0 +1,21 @@
+$ dotnet build EventBoard.sln
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  EventBoard.Api -> /Users/mac/event-board-debug-exercise/EventBoard.Api/bin/Debug/net8.0/EventBoard.Api.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.55
+
+$ dotnet test EventBoard.sln
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  EventBoard.Api -> /Users/mac/event-board-debug-exercise/EventBoard.Api/bin/Debug/net8.0/EventBoard.Api.dll
+  EventBoard.Api.Tests -> /Users/mac/event-board-debug-exercise/EventBoard.Api.Tests/bin/Debug/net8.0/EventBoard.Api.Tests.dll
+Test run for /Users/mac/event-board-debug-exercise/EventBoard.Api.Tests/bin/Debug/net8.0/EventBoard.Api.Tests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/trx/res.trx
+
+Passed!  - Failed:     0, Passed:    29, Skipped:     0, Total:    29, Duration: 3 s - EventBoard.Api.Tests.dll (net8.0)
