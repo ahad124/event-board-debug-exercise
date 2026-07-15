@@ -47,3 +47,6 @@ appsettings.*.local.json
 # frontend build env (non-secret) kept out of history for cleanliness
 event-board-frontend/.env.local
 event-board-frontend/.env
+
+# Security scanner output (not part of the repo)
+*.sarif
