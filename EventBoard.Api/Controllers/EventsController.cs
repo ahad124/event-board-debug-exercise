@@ -195,7 +195,7 @@ public class EventsController : ControllerBase
     /// Delete an event (Admin only)
     /// </summary>
     [HttpDelete("{id}")]
-    [Authorize(Roles = "User")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
