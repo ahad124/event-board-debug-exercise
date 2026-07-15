@@ -80,7 +80,7 @@ ORDER BY TotalRsvps DESC, e.Date ASC;";
             TotalEvents = await _context.Events.CountAsync(),
             TotalCategories = await _context.Categories.CountAsync(),
             TotalRsvps = await _context.Bookings.CountAsync(),
-            YesRsvps = await _context.Bookings.CountAsync(b => b.Status == BookingStatus.No),
+            YesRsvps = await _context.Bookings.CountAsync(b => b.Status == BookingStatus.Yes),
             MaybeRsvps = await _context.Bookings.CountAsync(b => b.Status == BookingStatus.Maybe),
             NoRsvps = await _context.Bookings.CountAsync(b => b.Status == BookingStatus.No),
             TotalFavorites = await _context.Favorites.CountAsync()
