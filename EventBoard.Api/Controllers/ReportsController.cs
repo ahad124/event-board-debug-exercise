@@ -74,15 +74,25 @@ ORDER BY TotalRsvps DESC, e.Date ASC;";
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<StatsDto>> GetStats()
     {
+        // Collapse the four booking counts (total + Yes/Maybe/No) into a single grouped
+        // query instead of four separate round-trips to the database.
+        var bookingsByStatus = await _context.Bookings
+            .GroupBy(b => b.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        int CountFor(BookingStatus status) =>
+            bookingsByStatus.FirstOrDefault(x => x.Status == status)?.Count ?? 0;
+
         var stats = new StatsDto
         {
             TotalUsers = await _context.Users.CountAsync(),
             TotalEvents = await _context.Events.CountAsync(),
             TotalCategories = await _context.Categories.CountAsync(),
-            TotalRsvps = await _context.Bookings.CountAsync(),
-            YesRsvps = await _context.Bookings.CountAsync(b => b.Status == BookingStatus.Yes),
-            MaybeRsvps = await _context.Bookings.CountAsync(b => b.Status == BookingStatus.Maybe),
-            NoRsvps = await _context.Bookings.CountAsync(b => b.Status == BookingStatus.No),
+            TotalRsvps = bookingsByStatus.Sum(x => x.Count),
+            YesRsvps = CountFor(BookingStatus.Yes),
+            MaybeRsvps = CountFor(BookingStatus.Maybe),
+            NoRsvps = CountFor(BookingStatus.No),
             TotalFavorites = await _context.Favorites.CountAsync()
         };
 

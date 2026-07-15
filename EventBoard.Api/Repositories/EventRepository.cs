@@ -23,9 +23,29 @@ public class EventRepository : IEventRepository
             .ToListAsync();
     }
 
+    // Paged listing. Counts the total once, then materialises only the requested page
+    // (with its RSVP bookings) instead of loading every event and every booking.
+    public async Task<(IReadOnlyList<Event> Items, int Total)> GetPagedAsync(int page, int pageSize)
+    {
+        var baseQuery = _context.Events.AsNoTracking();
+        var total = await baseQuery.CountAsync();
+
+        var items = await baseQuery
+            .OrderByDescending(e => e.Date)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(e => e.Category)
+            .Include(e => e.Organizer)
+            .Include(e => e.Bookings)
+            .ToListAsync();
+
+        return (items, total);
+    }
+
     public async Task<Event?> GetByIdAsync(int id)
     {
         return await _context.Events
+            .AsNoTracking()
             .Include(e => e.Category)
             .Include(e => e.Organizer)
             .Include(e => e.Bookings)

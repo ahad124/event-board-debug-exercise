@@ -36,10 +36,21 @@ public class EventsController : ControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<EventDto>>> GetAllEvents()
+    public async Task<ActionResult<IEnumerable<EventDto>>> GetAllEvents(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        _logger.LogInformation("Retrieving all events");
-        var events = await _eventRepository.GetAllAsync();
+        // Guard against unbounded / abusive page sizes.
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > 100 ? 20 : pageSize;
+
+        _logger.LogInformation("Retrieving events (page {Page}, size {PageSize})", page, pageSize);
+        var (events, total) = await _eventRepository.GetPagedAsync(page, pageSize);
+
+        // Pagination metadata in headers keeps the JSON body a plain array (frontend-compatible).
+        Response.Headers["X-Total-Count"] = total.ToString();
+        Response.Headers["X-Page"] = page.ToString();
+        Response.Headers["X-Page-Size"] = pageSize.ToString();
+
         return Ok(events.Select(e => MapToEventDto(e)));
     }
 
