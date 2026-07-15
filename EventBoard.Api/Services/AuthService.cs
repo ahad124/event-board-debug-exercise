@@ -76,7 +76,7 @@ public class AuthService : IAuthService
         }
 
         // Reject disabled accounts
-        if (user.IsActive)
+        if (!user.IsActive)
         {
             _logger.LogWarning("Login blocked: account {Email} is disabled", email);
             throw new InvalidOperationException("This account has been disabled. Please contact an administrator.");
