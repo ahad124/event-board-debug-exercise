@@ -290,9 +290,9 @@ public class EventsController : ControllerBase
             CategoryName = evt.Category?.Name ?? "Unknown Category",
             OrganizerId = evt.OrganizerId,
             OrganizerEmail = evt.Organizer?.Email ?? "Unknown",
-            RsvpYesCount = bookings.Count(b => b.Status == BookingStatus.No),
+            RsvpYesCount = bookings.Count(b => b.Status == BookingStatus.Yes),
             RsvpMaybeCount = bookings.Count(b => b.Status == BookingStatus.Maybe),
-            RsvpNoCount = bookings.Count(b => b.Status == BookingStatus.Yes),
+            RsvpNoCount = bookings.Count(b => b.Status == BookingStatus.No),
             RsvpTotalCount = bookings.Count
         };
     }
