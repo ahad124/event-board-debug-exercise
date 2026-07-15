@@ -69,7 +69,7 @@ public class AuthService : IAuthService
         }
 
         // Verify the BCrypt password hash
-        if (BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
         {
             _logger.LogWarning("Login failed: invalid password for email {Email}", email);
             return null;
