@@ -53,7 +53,7 @@ public class EventsController : ControllerBase
     {
         _logger.LogInformation("Retrieving event with ID: {EventId}", id);
 
-        if (id < 0)
+        if (id <= 0)
         {
             return BadRequest("Event ID must be greater than 0");
         }
