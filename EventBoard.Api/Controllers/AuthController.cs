@@ -36,9 +36,10 @@ public class AuthController : ControllerBase
 
         try
         {
-            _logger.LogInformation("Requested role: {Role}", request.Role);
-
-            var userId = await _authService.RegisterAsync(request.UserName, request.Email, request.Password, request.Role);
+            // SECURITY: public self-registration always creates a standard "User". The role
+            // is never taken from the request body — that would let anyone register as Admin.
+            // Elevating a user to Admin is an admin-only action via UsersController.UpdateRole.
+            var userId = await _authService.RegisterAsync(request.UserName, request.Email, request.Password);
             _logger.LogInformation("User registered successfully: {UserId}", userId);
             return Ok(new { UserId = userId, Message = "Registration successful" });
         }
@@ -104,9 +105,6 @@ public class RegisterRequest
     [Required(ErrorMessage = "Password is required")]
     [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
     public string Password { get; set; } = string.Empty;
-
-    [StringLength(50)]
-    public string Role { get; set; } = "User";
 }
 
 /// <summary>
