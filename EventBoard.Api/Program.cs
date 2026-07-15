@@ -86,7 +86,9 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            policy.AllowAnyOrigin()
+            // SECURITY: never fall back to AllowAnyOrigin. Default to known local dev
+            // origins only; configure Cors:AllowedOrigins for real deployments.
+            policy.WithOrigins("http://localhost", "http://localhost:5173")
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         }
