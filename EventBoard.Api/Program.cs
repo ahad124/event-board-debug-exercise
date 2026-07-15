@@ -6,14 +6,27 @@ using EventBoard.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Polly;
 using Polly.Extensions.Http;
+using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // SECURITY: don't advertise the server implementation.
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
+// Structured logging with Serilog: JSON to the console, enriched with request context.
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter()));
 
 // Add services to the container
 // Serialize/accept enums as their string names (e.g. BookingStatus "Confirmed")
@@ -98,6 +111,10 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+// Health checks: liveness + a database readiness probe.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("database");
+
 // Add Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -131,6 +148,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddLogging();
 
 var app = builder.Build();
+
+// Per-request structured log line (method, path, status, elapsed ms).
+app.UseSerilogRequestLogging();
 
 // SECURITY: baseline security response headers on every response.
 app.Use(async (context, next) =>
@@ -174,6 +194,10 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Health endpoints: /health (full, includes DB readiness) and /health/live (liveness only).
+app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthResponse });
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+
 // Apply migrations & seed database on startup.
 // SQL Server in Docker can take a while to accept connections, so retry a few times.
 using (var scope = app.Services.CreateScope())
@@ -202,4 +226,23 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Writes a compact JSON health payload (overall status + per-check status + duration).
+static Task WriteHealthResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    var payload = JsonSerializer.Serialize(new
+    {
+        status = report.Status.ToString(),
+        durationMs = report.TotalDuration.TotalMilliseconds,
+        checks = report.Entries.Select(e => new
+        {
+            name = e.Key,
+            status = e.Value.Status.ToString(),
+            description = e.Value.Description
+        })
+    });
+    return context.Response.WriteAsync(payload);
+}
+
 public partial class Program { }

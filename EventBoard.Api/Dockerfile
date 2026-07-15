@@ -17,6 +17,11 @@ RUN dotnet publish EventBoard.Api/EventBoard.Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
+# curl is used by the container HEALTHCHECK to probe /health/live
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # The app listens on 8080 (Kestrel default in the aspnet:8.0 image)
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
