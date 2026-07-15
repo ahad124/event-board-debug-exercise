@@ -101,10 +101,13 @@ builder.Services.AddLogging();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-// Swagger is enabled in every environment so reviewers can explore the API
-// in the Docker deployment as well.
-app.UseSwagger();
-app.UseSwaggerUI();
+// SECURITY: Swagger exposes the full API surface, so it is only served in Development
+// (or when explicitly enabled via the "EnableSwagger" flag), never in Production by default.
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue("EnableSwagger", false))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 // HTTPS redirection is opt-in. It is disabled by default so the app works over
 // plain HTTP inside Docker (behind Nginx) and in local dev without a cert.
