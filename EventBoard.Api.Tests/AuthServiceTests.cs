@@ -153,4 +153,32 @@ public class AuthServiceTests
             x.GenerateToken(It.IsAny<User>()),
             Times.Never);
     }
+        [Fact]
+    public async Task LoginAsync_DisabledAccount_ThrowsAndDoesNotIssueToken()
+    {
+        // Arrange
+        var password = "Password123";
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            UserName = "Ahad",
+            Email = "ahad@test.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Role = "User",
+            IsActive = false // account has been disabled by an admin
+        };
+
+        _userRepositoryMock
+            .Setup(x => x.GetByEmailAsync(user.Email))
+            .ReturnsAsync(user);
+
+        // Act & Assert — a disabled account must be rejected even with the correct password.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _authService.LoginAsync(user.Email, password));
+
+        _jwtTokenServiceMock.Verify(x =>
+            x.GenerateToken(It.IsAny<User>()),
+            Times.Never);
+    }
 }
