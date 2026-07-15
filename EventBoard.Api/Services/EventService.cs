@@ -14,6 +14,9 @@ public class EventService : IEventService
 
     public async Task<Event> CreateEventAsync(Event evt)
     {
+        if (evt == null)
+            throw new ArgumentNullException(nameof(evt));
+
         return await _repository.CreateAsync(evt);
     }
 
@@ -36,6 +39,9 @@ public class EventService : IEventService
             return false;
 
         var existing = await _repository.GetByIdAsync(id);
+
+        if (existing == null)
+            return false;
 
         await _repository.DeleteAsync(id);
 
