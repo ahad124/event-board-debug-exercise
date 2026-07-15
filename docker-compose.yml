@@ -41,6 +41,12 @@ services:
       - "8080:8080"
     volumes:
       - uploads_data:/app/wwwroot/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # ---------- Frontend (Nginx) ----------
   frontend:
@@ -49,7 +55,8 @@ services:
       dockerfile: Dockerfile
     container_name: eventboard-frontend
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "80:80"
 

@@ -6,10 +6,27 @@ using EventBoard.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Text.Json;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Polly;
 using Polly.Extensions.Http;
+using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// SECURITY: don't advertise the server implementation.
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
+// Structured logging with Serilog: JSON to the console, enriched with request context.
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter()));
 
 // Add services to the container
 // Serialize/accept enums as their string names (e.g. BookingStatus "Confirmed")
@@ -46,6 +63,17 @@ builder.Services.AddHttpClient<IWeatherService, WeatherService>(client =>
         retryCount: 3,
         sleepDurationProvider: _ => TimeSpan.FromSeconds(2)));
 
+// SECURITY: fail fast if the JWT signing key is missing or too weak outside Development,
+// so a misconfigured deployment cannot start with an insecure/absent secret. Provide the
+// key via environment variables or a secret store — never rely on a committed default.
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (!builder.Environment.IsDevelopment() &&
+    (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32))
+{
+    throw new InvalidOperationException(
+        "Jwt:Key must be configured with at least 32 bytes. Set it via environment or a secret store.");
+}
+
 // Add JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -65,6 +93,27 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// SECURITY: rate limit the authentication endpoints to slow brute-force / credential
+// stuffing. Fixed window: 5 requests per 30s per client IP on the "auth" policy.
+var authPermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 5);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = authPermitLimit,
+                Window = TimeSpan.FromSeconds(30),
+                QueueLimit = 0
+            }));
+});
+
+// Health checks: liveness + a database readiness probe.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("database");
 
 // Add Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -86,7 +135,9 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            policy.AllowAnyOrigin()
+            // SECURITY: never fall back to AllowAnyOrigin. Default to known local dev
+            // origins only; configure Cors:AllowedOrigins for real deployments.
+            policy.WithOrigins("http://localhost", "http://localhost:5173")
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         }
@@ -98,11 +149,29 @@ builder.Services.AddLogging();
 
 var app = builder.Build();
 
+// Per-request structured log line (method, path, status, elapsed ms).
+app.UseSerilogRequestLogging();
+
+// SECURITY: baseline security response headers on every response.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    headers["X-Permitted-Cross-Domain-Policies"] = "none";
+    headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+    await next();
+});
+
 // Configure the HTTP request pipeline.
-// Swagger is enabled in every environment so reviewers can explore the API
-// in the Docker deployment as well.
-app.UseSwagger();
-app.UseSwaggerUI();
+// SECURITY: Swagger exposes the full API surface, so it is only served in Development
+// (or when explicitly enabled via the "EnableSwagger" flag), never in Production by default.
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue("EnableSwagger", false))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 // HTTPS redirection is opt-in. It is disabled by default so the app works over
 // plain HTTP inside Docker (behind Nginx) and in local dev without a cert.
@@ -116,11 +185,18 @@ app.UseStaticFiles();
 
 app.UseCors("AllowFrontend");
 
+// Rate limiting (applies the named "auth" policy where controllers opt in).
+app.UseRateLimiter();
+
 // Authentication & Authorization middleware (order matters!)
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Health endpoints: /health (full, includes DB readiness) and /health/live (liveness only).
+app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthResponse });
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 
 // Apply migrations & seed database on startup.
 // SQL Server in Docker can take a while to accept connections, so retry a few times.
@@ -150,4 +226,23 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Writes a compact JSON health payload (overall status + per-check status + duration).
+static Task WriteHealthResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    var payload = JsonSerializer.Serialize(new
+    {
+        status = report.Status.ToString(),
+        durationMs = report.TotalDuration.TotalMilliseconds,
+        checks = report.Entries.Select(e => new
+        {
+            name = e.Key,
+            status = e.Value.Status.ToString(),
+            description = e.Value.Description
+        })
+    });
+    return context.Response.WriteAsync(payload);
+}
+
 public partial class Program { }
