@@ -6,6 +6,7 @@ using EventBoard.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Threading.RateLimiting;
 using Polly;
 using Polly.Extensions.Http;
 
@@ -66,6 +67,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// SECURITY: rate limit the authentication endpoints to slow brute-force / credential
+// stuffing. Fixed window: 5 requests per 30s per client IP on the "auth" policy.
+var authPermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 5);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = authPermitLimit,
+                Window = TimeSpan.FromSeconds(30),
+                QueueLimit = 0
+            }));
+});
+
 // Add Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -120,6 +138,9 @@ if (builder.Configuration.GetValue("UseHttpsRedirection", false))
 app.UseStaticFiles();
 
 app.UseCors("AllowFrontend");
+
+// Rate limiting (applies the named "auth" policy where controllers opt in).
+app.UseRateLimiter();
 
 // Authentication & Authorization middleware (order matters!)
 app.UseAuthentication();

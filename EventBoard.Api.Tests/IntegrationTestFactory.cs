@@ -21,6 +21,8 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        // Relax auth rate limiting for functional tests (a dedicated test sets it low).
+        builder.UseSetting("RateLimiting:AuthPermitLimit", "100000");
 
         builder.ConfigureServices(services =>
         {
