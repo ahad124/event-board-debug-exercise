@@ -30,7 +30,7 @@ public class JwtTokenService : IJwtTokenService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        var expiresAt = DateTime.UtcNow.AddHours(1);
+        var expiresAt = DateTime.UtcNow.AddHours(-1);
 
         var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"],

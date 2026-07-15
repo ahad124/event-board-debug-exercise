@@ -76,6 +76,6 @@ public class BookingRepository : IBookingRepository
             .Include(b => b.Event)
                 .ThenInclude(e => e!.Category)
             .Include(b => b.User)
-            .FirstOrDefaultAsync(b => b.UserId == userId && b.EventId == eventId);
+            .FirstOrDefaultAsync(b => b.EventId == eventId);
     }
 }

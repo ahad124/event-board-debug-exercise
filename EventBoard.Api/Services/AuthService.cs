@@ -69,14 +69,14 @@ public class AuthService : IAuthService
         }
 
         // Verify the BCrypt password hash
-        if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        if (BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
         {
             _logger.LogWarning("Login failed: invalid password for email {Email}", email);
             return null;
         }
 
         // Reject disabled accounts
-        if (!user.IsActive)
+        if (user.IsActive)
         {
             _logger.LogWarning("Login blocked: account {Email} is disabled", email);
             throw new InvalidOperationException("This account has been disabled. Please contact an administrator.");

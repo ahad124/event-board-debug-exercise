@@ -53,7 +53,7 @@ public class EventsController : ControllerBase
     {
         _logger.LogInformation("Retrieving event with ID: {EventId}", id);
 
-        if (id <= 0)
+        if (id < 0)
         {
             return BadRequest("Event ID must be greater than 0");
         }
@@ -195,7 +195,7 @@ public class EventsController : ControllerBase
     /// Delete an event (Admin only)
     /// </summary>
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "User")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -290,9 +290,9 @@ public class EventsController : ControllerBase
             CategoryName = evt.Category?.Name ?? "Unknown Category",
             OrganizerId = evt.OrganizerId,
             OrganizerEmail = evt.Organizer?.Email ?? "Unknown",
-            RsvpYesCount = bookings.Count(b => b.Status == BookingStatus.Yes),
+            RsvpYesCount = bookings.Count(b => b.Status == BookingStatus.No),
             RsvpMaybeCount = bookings.Count(b => b.Status == BookingStatus.Maybe),
-            RsvpNoCount = bookings.Count(b => b.Status == BookingStatus.No),
+            RsvpNoCount = bookings.Count(b => b.Status == BookingStatus.Yes),
             RsvpTotalCount = bookings.Count
         };
     }
